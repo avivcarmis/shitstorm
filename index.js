@@ -29,6 +29,17 @@ function ShitStormMaster(stormMessages) {
         if (template.host === null || template.port === null || template.path === null) {
             throw "Error: a storm message must specify at least host, port and path";
         }
+        if (typeof template.body === "object") {
+            template.body = JSON.stringify(template.body);
+        }
+        else if (typeof template.body === "function") {
+            template._bodyFunction = template.body.toString();
+            template.body = null;
+        }
+        if (typeof template.queryParams === "function") {
+            template._queryParamsFunction = template.queryParams.toString();
+            template.queryParams = null;
+        }
         stormMessages[i] = template;
     }
     this.stormMessages = stormMessages;
@@ -129,9 +140,16 @@ ShitStormSlave.prototype.doShitStorm = function(stormIndex, intervalMillis, tota
         return;
     }
     for (var i = 0; i < stormDescriptor.length; i++) {
-        var descriptorString = JSON.stringify(stormDescriptor[i]);
-        descriptorString = descriptorString.split("{{STORM_INDEX}}").join(stormIndex);
-        var messageDescriptor = JSON.parse(descriptorString);
+        var messageDescriptor = stormDescriptor[i];
+        if (typeof messageDescriptor._bodyFunction !== "undefined") {
+            messageDescriptor.body = this.evalFunction(messageDescriptor._bodyFunction, stormIndex);
+            if (typeof messageDescriptor.body === "object") {
+                messageDescriptor.body = JSON.stringify(messageDescriptor.body);
+            }
+        }
+        if (typeof messageDescriptor._queryParamsFunction !== "undefined") {
+            messageDescriptor.queryParams = this.evalFunction(messageDescriptor._queryParamsFunction, stormIndex);
+        }
         this.queueMessage(i * intervalMillis, messageDescriptor, {
             success: function() {
                 console.log("success");
@@ -145,6 +163,10 @@ ShitStormSlave.prototype.doShitStorm = function(stormIndex, intervalMillis, tota
     setTimeout(function() {
         self.doShitStorm(stormIndex + 1, intervalMillis, totalCount, stormDescriptor);
     }, intervalMillis * stormDescriptor.length);
+};
+
+ShitStormSlave.prototype.evalFunction = function(functionString, stormIndex) {
+    return eval("(" + functionString + ")(" + stormIndex + ")");
 };
 
 ShitStormSlave.prototype.queueMessage = function(timeout, messageDescriptor, callbacks) {
