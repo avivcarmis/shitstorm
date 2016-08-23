@@ -24,4 +24,3 @@ master
             port: 667
         })
         .start(100, 10);
-master.start(100, 10);
