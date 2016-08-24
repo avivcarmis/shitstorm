@@ -40,6 +40,10 @@ function ShitStormMaster(stormMessages) {
             template._queryParamsFunction = template.queryParams.toString();
             template.queryParams = null;
         }
+        if (typeof template.headers === "function") {
+            template._headersFunction = template.headers.toString();
+            template.headers = null;
+        }
         stormMessages[i] = template;
     }
     this.stormMessages = stormMessages;
@@ -113,7 +117,7 @@ ShitStormSlave.prototype.settings = null;
 ShitStormSlave.prototype.start = function() {
     var self = this;
     var app = express();
-    app.use(bodyParser.json());
+    app.use(bodyParser.json({limit: '100mb'}));
     app.post('/start', function (req, res) {
         try {
             if (typeof req.body.intervalMillis === "undefined") {
@@ -151,6 +155,9 @@ ShitStormSlave.prototype.doShitStorm = function(stormId, stormIndex, intervalMil
         if (typeof messageDescriptor._queryParamsFunction !== "undefined") {
             messageDescriptor.queryParams = this.evalFunction(messageDescriptor._queryParamsFunction, stormId, stormIndex);
         }
+        if (typeof messageDescriptor._headersFunction !== "undefined") {
+            messageDescriptor.headers = this.evalFunction(messageDescriptor._headersFunction, stormId, stormIndex);
+        }
         this.queueMessage(i * intervalMillis, messageDescriptor, {
             success: function() {
                 console.log("success");
@@ -167,7 +174,7 @@ ShitStormSlave.prototype.doShitStorm = function(stormId, stormIndex, intervalMil
 };
 
 ShitStormSlave.prototype.evalFunction = function(functionString, stormId, stormIndex) {
-    return eval("(" + functionString + ")(" + stormId + ", " + stormIndex + ")");
+    return eval("(" + functionString + ")(\"" + stormId + "\", " + stormIndex + ")");
 };
 
 ShitStormSlave.prototype.queueMessage = function(timeout, messageDescriptor, callbacks) {
